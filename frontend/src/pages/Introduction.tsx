@@ -47,17 +47,27 @@ const usage = [
   {
     name: 'Pipe',
     body: 'Send any command output or file through Cloak from the terminal.',
-    command: 'cat error.log | cloak'
+    commands: ['cat error.log | cloak']
   },
   {
     name: 'Clipboard',
-    body: 'Sanitize what you just copied, paste it into your AI tool, then restore the real values in the answer.',
-    command: 'cloak clip'
+    body: 'Sanitize what you just copied, then paste it into your AI tool. Add -v for a breakdown by category.',
+    commands: ['cloak clip', 'cloak clip -v']
   },
   {
-    name: 'Upload',
-    body: 'Drop a file into the web interface to redact it and inspect exactly what changed.',
-    command: ''
+    name: 'Restore',
+    body: 'After the AI answers using the placeholders, copy its response and restore your real values.',
+    commands: ['cloak restore']
+  },
+  {
+    name: 'Ask',
+    body: 'Sanitize the error on your clipboard, ask the AI, and get the answer back with real values restored. Pass a question to focus it.',
+    commands: ['cloak ask', 'cloak ask "Explain why the database connection failed and provide the exact fix"']
+  },
+  {
+    name: 'Web app',
+    body: 'Start the local companion web app to redact files and review what changed.',
+    commands: ['cloak ui']
   }
 ];
 
@@ -163,12 +173,11 @@ export default function Introduction() {
             <dt>{u.name}</dt>
             <dd>
               {u.body}
-              {u.command && (
-                <>
-                  {' '}
-                  <code>{u.command}</code>
-                </>
-              )}
+              <span className={styles.commands}>
+                {u.commands.map((c) => (
+                  <code key={c}>{c}</code>
+                ))}
+              </span>
             </dd>
           </div>
         ))}

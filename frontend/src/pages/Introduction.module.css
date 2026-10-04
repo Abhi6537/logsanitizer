@@ -83,6 +83,19 @@
   color: var(--text-secondary);
 }
 
+.commands {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.commands code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .next {
   display: flex;
   flex-direction: column;
