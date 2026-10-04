@@ -1,0 +1,24 @@
+{
+  "name": "cloak-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-first privacy shield for terminal logs and AI assistants",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run --workspaces --if-present build",
+    "test": "npm run --workspace=@cloak/core test",
+    "lint": "npm run --workspaces --if-present lint"
+  },
+  "keywords": [
+    "privacy",
+    "ai",
+    "sanitizer",
+    "terminal",
+    "devtools",
+    "security"
+  ],
+  "author": "",
+  "license": "MIT"
+}

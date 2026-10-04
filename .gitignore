@@ -1,0 +1,34 @@
+# Dependencies
+node_modules
+dist
+.pnpm-store
+
+# Environment variables
+.env
+.env.local
+*.env
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Test coverage & logs
+coverage
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE & Editor folders
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+
+# Temporary files & caches
+.vite
+.cache
+*.tsbuildinfo
+fixtures
