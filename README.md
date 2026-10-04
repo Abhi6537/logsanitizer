@@ -1,76 +1,207 @@
 # CLOAK (`cloak`)
 
-> **Local-first developer privacy shield for terminal logs and AI assistants.**
+```text
+   ____ _     ___   _    _  __
+  / ___| |   / _ \ / \  | |/ /
+ | |   | |  | | | / _ \ | ' / 
+ | |___| |__| |_| / ___ \| . \ 
+  \____|_____\___/_/   \_\_|\_\  v1.0.0
+  ───────────────────────────────────────
+  Local-first privacy shield for AI logs
+```
 
-Cloak intercepts raw terminal errors, stack traces, and server logs, deterministically tokenizes sensitive production credentials (database connection strings, AWS keys, JWTs, private IPs, emails) into syntactically valid semantic placeholders, and enables two-way reverse rehydration so AI-suggested code fixes can be applied back to your real environment.
+<p align="center">
+  <img src="https://img.shields.io/badge/Language-TypeScript_5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/AI_Engine-Google_Gemma_4-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Gemma" />
+  <img src="https://img.shields.io/badge/Local_Inference-Ollama_(Offline)-000000?style=for-the-badge&logo=ollama&logoColor=white" alt="Ollama" />
+  <img src="https://img.shields.io/badge/Frontend-React_19_+_Vite-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT" />
+  <img src="https://img.shields.io/badge/Security-Zero_Egress_Localhost-6366F1?style=for-the-badge" alt="Localhost" />
+</p>
+
+> **Don't let your emergency production fix become your next data breach.**  
+> Cloak sits directly between your terminal, clipboard, and AI models. It intercepts raw production errors and stack traces, redacts real credentials into syntactically valid synthetic mocks, queries **Gemma**, and deterministically inverts placeholders back into your real host secrets in the final fix.
 
 ---
 
-## ⚡ Quickstart
+## ⚡ The Zero-Knowledge Workflow
 
-### 1. Daily Developer Workflow (Clipboard Bridge)
-```bash
-# 1. An error occurs in VS Code -> Press Ctrl+C (copy error)
-# 2. Run cloak clip in your terminal:
-node packages/cli/dist/index.js clip
+```text
+PS > cloak ask "Explain the error and give fix command"
 
-# 3. Paste into ChatGPT / Claude / Copilot / Antigravity -> Zero secrets leaked!
-# 4. Copy the AI's response -> Rehydrate real values:
-node packages/cli/dist/index.js restore
+  [INPUT SANITIZATION] (Source: clipboard)
+  [-] RED: Raw Sensitive Secret  ->  [+] GREEN: Safe Synthetic Mock
 
-# 5. Paste fix in your code editor -> Working code with real endpoints!
-```
+  [-] sk_live_mock_stripe_key_prod_99182 [STRIPE_KEY]
+   -> [+] sk_live_mock_stripe_key_01
 
-### 2. Direct Terminal AI Query (`cloak ask`)
-Query **Gemma 4** open-weights directly from your command line:
-```bash
-# Cloud API mode (Gemini API):
-cat fixtures/postgres-timeout.log | node packages/cli/dist/index.js ask "How do I fix this connection timeout?"
+  [-] 192.168.1.55 [IPV4]
+   -> [+] 10.0.0.101
 
-# 100% Offline Air-Gapped mode (local Ollama):
-cat fixtures/postgres-timeout.log | node packages/cli/dist/index.js ask --local "Analyze this crash"
-```
+  [-] eyJhbGciOiJIUzI1N...Lm3k2Vx81nK9p7LmQ [JWT]
+   -> [+] <CLOAK_JWT_TOKEN_01>
 
-### 3. Unix Pipeline
-```bash
-cat server.log | node packages/cli/dist/index.js
-```
+  [-] finance-director@enterprise-client.com [EMAIL]
+   -> [+] dev_user_01@example.internal
 
-### 4. Interactive Companion Web Dashboard
-```bash
-node packages/cli/dist/index.js ui
-# Or run directly:
-npm run --workspace=@cloak/web dev
-# Opens http://localhost:3000
+  [OK] Sanitized 4 secrets locally. Payload locked for zero-knowledge query.
+
+? Select Gemma runtime engine:
+❯ Gemma 4 26B-A4B (API) · Fast Mixture-of-Experts
+  Gemma 4 31B (API) · Flagship deep reasoning
+  Gemma Local (Ollama: gemma2:2b) · 100% Offline
+  [X] Cancel / Exit
+
+  [ / ] Querying gemma-4-26b-a4b-it (Gemini API)...
+  [OK] Model reasoning complete.
+
+  [OUTPUT REHYDRATION] (Deterministic Local Inversion)
+  [+] GREEN: AI Synthetic Mock  ->  [-] RED: Restored Local Host Value
+
+  [+] sk_live_mock_stripe_key_01 [STRIPE_KEY]
+   -> [-] sk_live_mock_stripe_key_prod_99182
+
+  [+] 10.0.0.101 [IPV4]
+   -> [-] 192.168.1.55
+
+  [+] <CLOAK_JWT_TOKEN_01> [JWT]
+   -> [-] eyJhbGciOiJIUzI1N...Lm3k2Vx81nK9p7LmQ
+
+  [+] dev_user_01@example.internal [EMAIL]
+   -> [-] finance-director@enterprise-client.com
+
+  [FINAL SOLUTION]
+  ┌──────────────────────────────────────────────────────────────────────
+  │ ### Error Analysis
+  │ The billing-webhook-service failed due to credential rejection on key:
+  │ sk_live_mock_stripe_key_prod_99182.
+  │
+  │ ### Fix Command
+  │ kubectl create secret generic stripe-credentials \
+  │   --from-literal=STRIPE_SECRET_KEY='<ACTUAL_KEY>' \
+  │   --dry-run=client -o yaml | kubectl apply -f -
+  │ kubectl rollout restart deployment/billing-webhook-service
+  └──────────────────────────────────────────────────────────────────────
+  [OK] All identifiers accurately restored to your real environment.
 ```
 
 ---
 
-## 🏗 Architecture
+## 🛠 Tech Stack & Architecture
 
+```text
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                      DEVELOPER LOCAL MACHINE                           │
+ │                                                                        │
+ │  [ Terminal / kubectl / docker ]    [ Clipboard (Ctrl+C from Sentry) ] │
+ │               │                                     │                  │
+ │               └─────────────────┬───────────────────┘                  │
+ │                                 ▼                                      │
+ │                       ┌───────────────────┐                            │
+ │                       │   @cloak/core     │                            │
+ │                       │ • Format Sniffer  │                            │
+ │                       │ • Semantic AST    │                            │
+ │                       │ • Shannon Entropy │                            │
+ │                       └─────────┬─────────┘                            │
+ │                                 │                                      │
+ │                 ┌───────────────┴───────────────┐                      │
+ │                 ▼                               ▼                      │
+ │    ┌─────────────────────────┐     ┌────────────────────────┐          │
+ │    │  IN-MEMORY VAULT LEDGER │     │   CLOAKED PAYLOAD      │          │
+ │    │  { Real ⟷ Synthetic }   │     │  (Valid Mocks Only)    │          │
+ │    └────────────┬────────────┘     └────────────┬───────────┘          │
+ └─────────────────┼───────────────────────────────┼──────────────────────┘
+                   │                               │
+                   │               ┌───────────────┴──────────────┐
+                   │               ▼                              ▼
+                   │     [ Gemma 4 Cloud API ]          [ Gemma Local (Ollama) ]
+                   │     (Gemini 26B-A4B / 31B)         (100% Offline Engine)
+                   │               │                              │
+                   │               └───────────────┬──────────────┘
+                   ▼                               ▼
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │  REHYDRATION ENGINE                                                    │
+ │  Inverts synthetic placeholders back to real database endpoints/keys  │
+ │                                 │                                      │
+ │                                 ▼                                      │
+ │               [ Actionable Fix Ready for Terminal ]                    │
+ └────────────────────────────────────────────────────────────────────────┘
 ```
-[ Developer Terminal / Clipboard ]
-                │
-                ▼ (Raw logs with secrets)
-     ┌──────────────────────┐
-     │      `cloak`         │
-     │ 1. Format Sniff      │ ───▶ [ Local Session Vault ]
-     │ 2. Regex / Pattern   │      (In-Memory / SQLite)
-     │ 3. Deterministic Mock│      { real_secret ⟷ synthetic_mock }
-     └──────────────────────┘
-                │
-                ▼ (Clean logs with valid synthetic mocks)
-   [ AI Chat / Gemma 4 / Claude / ChatGPT ]
-                │
-                ▼ (AI fixes with synthetic values)
-     ┌──────────────────────┐
-     │  `cloak restore`     │ ◀─── [ Local Session Vault ]
-     │ (Reverse Rehydration)│
-     └──────────────────────┘
-                │
-                ▼ (Usable commands & fixes with real local hosts/IDs)
-[ Ready to execute in local terminal ]
+
+| Component | Technology | Role |
+| :--- | :--- | :--- |
+| **Core Privacy Engine** | TypeScript, RegEx AST, Shannon Entropy | Zero-dependency deterministic tokenizer and in-memory Session Vault |
+| **Terminal CLI** | Node.js, Commander, Chalk, Inquirer Prompts | High-performance interactive CLI with paired diffs & buffer animations |
+| **AI Runtime** | Google GenAI SDK (`@google/genai`) & Ollama REST | Native integration with Gemma 4 (31B, 26B-A4B) & offline Gemma 2 models |
+| **Web Companion** | React 19, Vite, Tailwind-style Vanilla CSS | Real-time browser companion UI with live side-by-side ledger inspection |
+
+---
+
+## 🚀 Quickstart
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Abhi6537/logsanitizer.git
+cd logsanitizer
+
+# Install dependencies and build
+npm install
+npm run build
+
+# Link CLI globally to your PATH
+npm link --workspace=cloak
 ```
+
+### Daily Usage Commands
+
+```bash
+# 1. Ask Gemma directly from your clipboard (Copy error with Ctrl+C, then run):
+cloak ask "What caused this and how do I fix it?"
+
+# 2. From a specific log file:
+cloak ask -f ./fixtures/prisma-rds-crash.log
+
+# 3. 100% Offline (Zero network egress via local Ollama):
+cloak ask --local -f ./fixtures/python-celery-crash.log
+
+# 4. Clipboard Shield for Web AI (ChatGPT / Claude / Gemini Web):
+cloak clip     # Masks secrets on clipboard with safe mocks
+cloak restore  # Rehydrates AI response back to real host values
+
+# 5. Unix Pipe Workflow:
+kubectl logs -n prod deployment/billing-api --tail=100 | cloak ask
+cat error.log | cloak > safe-output.log
+
+# 6. Launch Companion Web Dashboard:
+cloak ui       # Opens http://localhost:3000
+```
+
+---
+
+## 🛡 What Cloak Detects & Masks
+
+Unlike naive tools that replace strings with `[REDACTED]` (which breaks JSON parsing and confuses LLMs), Cloak substitutes **syntactically compatible synthetic mocks**:
+
+| Category | Real Production Secret | Synthetic Safe Mock |
+| :--- | :--- | :--- |
+| **Database URIs** | `postgresql://usr:pass99!@prod-db.us-east-1.rds.amazonaws.com:5432/main` | `postgresql://dev_usr_01:mock_cred_01@internal-mock-db-01.mock:5432/sandbox_db` |
+| **AWS Access Keys** | `AKIA7K9P2X4M1W8V3T0Q` | `AKIA0000EXAMPLE01` |
+| **Stripe Keys** | `sk_live_mock_stripe_key_prod_99182` | `sk_live_mock_stripe_key_01` |
+| **JWT Tokens** | `eyJhbGciOiJIUzI1Ni...SflKxwRJ` | `<CLOAK_JWT_TOKEN_01>` |
+| **Internal IPv4** | `10.244.3.89`, `192.168.1.104` | `10.0.0.101`, `10.0.0.102` |
+| **Cloud Hostnames**| `redis-cluster-cache.us-east-1.rds.amazonaws.com` | `internal-mock-db-01.mock` |
+| **Customer Emails**| `finance-director@enterprise-client.com` | `dev_user_01@example.internal` |
+| **Private Keys** | `-----BEGIN PRIVATE KEY----- ...` | `-----BEGIN PRIVATE KEY-----\nMOCK_KEY_DATA_01...` |
+
+---
+
+## 🔒 Security & Privacy Guarantees
+
+* **Zero Disk Persistence:** Token mappings are stored strictly in temporary RAM (`SessionVault`). Once your command completes or session closes, mappings are destroyed.
+* **Preserves Code Integrity:** Maintains port numbers, query strings, and schema definitions so Gemma has full technical context to diagnose network timeouts and syntax errors.
+* **No Telemetry / No Tracking:** Cloak does not collect analytics or track your requests.
 
 ---
 
@@ -78,11 +209,10 @@ npm run --workspace=@cloak/web dev
 
 ```bash
 # Run automated vitest test suite
-npm run test
+npm test
 ```
 
 ---
 
-## 🏆 Hackathon Alignment
-- **Best Open-Source AI Project:** 100% original developer privacy architecture built on open-weights model standards.
-- **Best Use of Gemma 4:** Integrated dual-engine support for Gemma 4 via Gemini API and local Ollama.
+## 📄 License
+Released under the [MIT License](LICENSE).
