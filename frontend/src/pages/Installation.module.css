@@ -1,0 +1,19 @@
+.prose {
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.note {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.gap {
+  margin-top: 12px;
+}
+
+.gapLarge {
+  margin-top: 20px;
+}

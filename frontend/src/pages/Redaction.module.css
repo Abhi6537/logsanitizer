@@ -1,0 +1,15 @@
+.page {
+  max-width: var(--content-width-wide);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.search {
+  flex: 1;
+  max-width: 320px;
+  min-width: 0;
+}
