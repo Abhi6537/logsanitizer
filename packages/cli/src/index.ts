@@ -7,12 +7,10 @@ import {
   printBanner,
   printMiniBanner,
   formatReport,
-  printRawContext,
-  printSanitizationDiff,
-  printStepPayload,
-  printRawAiResponse,
-  printRehydrationLedger,
-  printFinalOutput
+  createSpinner,
+  printSanitizationPair,
+  printRehydrationPair,
+  printFinalSolution
 } from './ui.js';
 import { readClipboard, writeClipboard } from './clipboard.js';
 import { queryGemma, getLocalGemmaModel } from './ai.js';
@@ -93,7 +91,6 @@ program
   .option('-f, --file <path>', 'Path to log or context file to sanitize')
   .option('--local', 'Fast flag: Use local offline Ollama instance directly')
   .option('-m, --model <name>', 'Fast flag: Specific model name')
-  .option('--inspect', 'Print all intermediate zero-knowledge pipeline steps')
   .action(async (questionArg, opts) => {
     try {
       const question = questionArg && questionArg.trim().length > 0 
@@ -156,10 +153,7 @@ program
       let totalMasked = 0;
 
       if (hasContext) {
-        // Step 1: Show Raw Context Captured
-        printRawContext(rawContext, contextSource);
-
-        // Step 2: Sanitize and show Red/Green diff
+        // Step 1: Sanitize and show Red/Green paired diff
         const sanitizedRes = sanitize(rawContext);
         sanitizedContext = sanitizedRes.sanitized;
         sessionId = sanitizedRes.sessionId;
@@ -167,19 +161,18 @@ program
         totalMasked = sanitizedRes.totalMasked;
 
         if (totalMasked > 0) {
-          printSanitizationDiff(occurrences, totalMasked);
-          console.log(chalk.dim(`  cloak › session [${chalk.cyan(sessionId)}] locked locally. Payload is safe for network egress.\n`));
+          printSanitizationPair(occurrences, totalMasked, contextSource);
         } else {
-          console.log(chalk.dim(`\n  cloak › 0 sensitive secrets detected [Session: ${chalk.cyan(sessionId)}]\n`));
+          console.log(chalk.dim(`\n  cloak › 0 sensitive secrets detected in context.\n`));
         }
       } else {
         console.log(chalk.dim(`\n  cloak › no log context provided (pipe | or use -f <file> or copy error to clipboard)`));
       }
 
-      // Step 3: Runtime engine selection
+      // Step 2: Runtime engine selection
       const localGemmaName = await getLocalGemmaModel();
       let selectedProvider: 'api' | 'local' = opts.local ? 'local' : 'api';
-      let selectedModel: string = opts.model ?? (opts.local ? localGemmaName : 'gemma-4-31b-it');
+      let selectedModel: string = opts.model ?? (opts.local ? localGemmaName : 'gemma-4-26b-a4b-it');
 
       if (!opts.local && !opts.model) {
         const { select } = await import('@inquirer/prompts');
@@ -188,19 +181,19 @@ program
             message: 'Select Gemma runtime engine:',
             choices: [
               {
-                name: `${chalk.bold('Gemma 4 31B')} ${chalk.cyan('(API)')} · ${chalk.dim('Flagship deep reasoning model')}`,
-                value: { provider: 'api' as const, model: 'gemma-4-31b-it' }
-              },
-              {
-                name: `${chalk.bold('Gemma 4 26B-A4B')} ${chalk.cyan('(API)')} · ${chalk.dim('Fast Mixture-of-Experts (low latency)')}`,
+                name: `${chalk.bold('Gemma 4 26B-A4B')} ${chalk.cyan('(API)')} · ${chalk.dim('Fast Mixture-of-Experts')}`,
                 value: { provider: 'api' as const, model: 'gemma-4-26b-a4b-it' }
               },
               {
-                name: `${chalk.bold('Gemma Local')} ${chalk.green(`(Ollama: ${localGemmaName})`)} · ${chalk.dim('100% Offline, zero network egress')}`,
+                name: `${chalk.bold('Gemma 4 31B')} ${chalk.cyan('(API)')} · ${chalk.dim('Flagship deep reasoning')}`,
+                value: { provider: 'api' as const, model: 'gemma-4-31b-it' }
+              },
+              {
+                name: `${chalk.bold('Gemma Local')} ${chalk.green(`(Ollama: ${localGemmaName})`)} · ${chalk.dim('100% Offline')}`,
                 value: { provider: 'local' as const, model: localGemmaName }
               },
               {
-                name: `${chalk.red('[X] Cancel / Exit')} ${chalk.dim('(Esc or select to quit)')}`,
+                name: `${chalk.red('[X] Cancel / Exit')}`,
                 value: 'exit'
               }
             ]
@@ -223,8 +216,7 @@ program
         }
       }
 
-      console.log(chalk.dim(`\n  cloak › querying ${chalk.bold(selectedModel)} (${selectedProvider === 'local' ? '100% offline via Ollama' : 'Gemini API'})...`));
-
+      // Step 3: Buffer animation while model reasoning
       const fullPrompt = hasContext
         ? `Here are the sanitized logs/context:\n\`\`\`\n${sanitizedContext}\n\`\`\`\n\nQuestion: ${question}`
         : question;
@@ -234,85 +226,33 @@ program
         'Analyze the user error or logs and provide a direct, precise, actionable fix. ' +
         'Preserve all hostnames, IDs, and placeholders in your commands verbatim so they can be rehydrated.';
 
-      const rawAiResponse = await queryGemma(fullPrompt, systemInstruction, {
-        provider: selectedProvider,
-        model: selectedModel
-      });
+      const spinner = createSpinner(`Querying ${selectedModel} (${selectedProvider === 'local' ? 'Ollama Offline' : 'Gemini API'})...`);
 
-      // Automatically rehydrate response if we sanitized a session
+      let rawAiResponse = '';
+      try {
+        rawAiResponse = await queryGemma(fullPrompt, systemInstruction, {
+          provider: selectedProvider,
+          model: selectedModel
+        });
+        spinner.stop('Model reasoning complete.');
+      } catch (queryErr) {
+        spinner.stop();
+        throw queryErr;
+      }
+
+      // Step 4: Rehydration and clean Green -> Red pair display
       let finalResponse = rawAiResponse;
-      let restoredCount = 0;
       if (sessionId) {
         const rehydrateRes = rehydrate(rawAiResponse, { sessionId });
         finalResponse = rehydrateRes.rehydrated;
-        restoredCount = rehydrateRes.replacementsCount;
       }
 
-      // Middle steps inspection: auto if --inspect, or interactive arrow menu if in TTY
-      if (opts.inspect && hasContext && totalMasked > 0) {
-        printStepPayload(sanitizedContext);
-        printRawAiResponse(rawAiResponse);
-        printRehydrationLedger(occurrences);
-      } else if (hasContext && totalMasked > 0 && process.stdin.isTTY) {
-        const { select } = await import('@inquirer/prompts');
-        let inspecting = true;
-
-        while (inspecting) {
-          try {
-            const inspectChoice = await select({
-              message: 'Zero-Knowledge Pipeline (Use arrow keys to inspect hidden steps):',
-              choices: [
-                {
-                  name: `${chalk.bold.green('[>] View Final Rehydrated Output')} ${chalk.dim('(Recommended)')}`,
-                  value: 'final'
-                },
-                {
-                  name: `${chalk.cyan('[v] Inspect Step: Payload Sent to Model')} ${chalk.dim('(Sanitized with green mocks)')}`,
-                  value: 'payload'
-                },
-                {
-                  name: `${chalk.yellow('[v] Inspect Step: Raw Model Response')} ${chalk.dim('(Prior to local rehydration)')}`,
-                  value: 'raw'
-                },
-                {
-                  name: `${chalk.magenta('[v] Inspect Step: Secret Inversion Ledger')} ${chalk.dim('(Mock -> Host Mapping)')}`,
-                  value: 'ledger'
-                },
-                {
-                  name: `${chalk.bold.white('[*] Reveal All Intermediate Steps')}`,
-                  value: 'all'
-                }
-              ]
-            });
-
-            if (inspectChoice === 'final') {
-              inspecting = false;
-            } else if (inspectChoice === 'payload') {
-              printStepPayload(sanitizedContext);
-              console.log('');
-            } else if (inspectChoice === 'raw') {
-              printRawAiResponse(rawAiResponse);
-              console.log('');
-            } else if (inspectChoice === 'ledger') {
-              printRehydrationLedger(occurrences);
-            } else if (inspectChoice === 'all') {
-              printStepPayload(sanitizedContext);
-              printRawAiResponse(rawAiResponse);
-              printRehydrationLedger(occurrences);
-            }
-          } catch (promptErr: unknown) {
-            const err = promptErr as { name?: string };
-            if (err?.name === 'ExitPromptError') {
-              inspecting = false;
-            } else {
-              throw promptErr;
-            }
-          }
-        }
+      if (hasContext && totalMasked > 0) {
+        printRehydrationPair(occurrences);
       }
 
-      // Step 4: Display final rehydrated fix
-      printFinalOutput(finalResponse, restoredCount);
+      // Step 5: Final clean solution
+      printFinalSolution(finalResponse);
       process.exit(0);
     } catch (err) {
       console.error(chalk.red(`\n  [ERR] Error: ${err instanceof Error ? err.message : String(err)}\n`));
