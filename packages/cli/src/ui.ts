@@ -22,6 +22,95 @@ export function printMiniBanner(): void {
   console.log(`\n  ${MINI_BANNER}`);
 }
 
+function truncateMiddle(str: string, maxLen = 38): string {
+  if (str.length <= maxLen) return str;
+  const half = Math.floor((maxLen - 3) / 2);
+  return `${str.substring(0, half)}...${str.slice(-half)}`;
+}
+
+/**
+ * Animated buffer spinner for model reasoning
+ */
+export function createSpinner(text: string) {
+  const frames = ['[ - ]', '[ \\ ]', '[ | ]', '[ / ]'];
+  let i = 0;
+  const timer = setInterval(() => {
+    process.stdout.write(`\r  ${chalk.cyan(frames[i++ % frames.length])} ${chalk.dim(text)} `);
+  }, 100);
+
+  return {
+    stop: (doneMessage?: string) => {
+      clearInterval(timer);
+      process.stdout.write('\r' + ' '.repeat(text.length + 15) + '\r');
+      if (doneMessage) {
+        console.log(`  ${chalk.green('[OK]')} ${chalk.bold(doneMessage)}`);
+      }
+    }
+  };
+}
+
+/**
+ * Clean paired Red -> Green sanitization diff
+ * Red (raw sensitive) beside Green (safe mock)
+ */
+export function printSanitizationPair(occurrences: MaskedOccurrence[], total: number, source: string): void {
+  console.log(`\n  ${chalk.bold.cyan('[INPUT SANITIZATION]')} ${chalk.dim(`(Source: ${source})`)}`);
+  console.log(`  ${chalk.red.bold('[-] RED: Raw Sensitive Secret')}  ${chalk.dim('->')}  ${chalk.green.bold('[+] GREEN: Safe Synthetic Mock')}\n`);
+
+  const seen = new Set<string>();
+  for (const occ of occurrences) {
+    if (seen.has(occ.original)) continue;
+    seen.add(occ.original);
+
+    const redVal = chalk.red.bold(truncateMiddle(occ.original));
+    const greenVal = chalk.green.bold(truncateMiddle(occ.mock));
+    const catLabel = chalk.dim(`[${occ.category}]`);
+
+    console.log(`  [-] ${redVal} ${catLabel}`);
+    console.log(`   -> [+] ${greenVal}\n`);
+  }
+
+  console.log(`  ${chalk.green('[OK]')} ${chalk.dim(`Sanitized ${total} secrets locally. Payload locked for zero-knowledge query.\n`)}`);
+}
+
+/**
+ * Clean paired Green -> Red rehydration diff
+ * Green (mock in model response) beside Red (restored real environment value)
+ */
+export function printRehydrationPair(occurrences: MaskedOccurrence[]): void {
+  console.log(`\n  ${chalk.bold.magenta('[OUTPUT REHYDRATION]')} ${chalk.dim('(Deterministic Local Inversion)')}`);
+  console.log(`  ${chalk.green.bold('[+] GREEN: AI Synthetic Mock')}  ${chalk.dim('->')}  ${chalk.red.bold('[-] RED: Restored Local Host Value')}\n`);
+
+  const seen = new Set<string>();
+  for (const occ of occurrences) {
+    if (seen.has(occ.mock)) continue;
+    seen.add(occ.mock);
+
+    const greenVal = chalk.green.bold(truncateMiddle(occ.mock));
+    const redVal = chalk.red.bold(truncateMiddle(occ.original));
+    const catLabel = chalk.dim(`[${occ.category}]`);
+
+    console.log(`  [+] ${greenVal} ${catLabel}`);
+    console.log(`   -> [-] ${redVal}\n`);
+  }
+}
+
+/**
+ * Final clean and clear solution
+ */
+export function printFinalSolution(solutionText: string): void {
+  console.log(`  ${chalk.bold.green('[FINAL SOLUTION]')}`);
+  console.log(chalk.dim('  ┌' + '─'.repeat(70)));
+
+  const lines = solutionText.trim().split('\n');
+  for (const line of lines) {
+    console.log(`  ${chalk.dim('│')} ${line}`);
+  }
+
+  console.log(chalk.dim('  └' + '─'.repeat(70)));
+  console.log(`  ${chalk.green('[OK]')} ${chalk.dim('All identifiers accurately restored to your real environment.\n')}`);
+}
+
 export function formatReport(summaries: EntitySummary[]): string {
   if (summaries.length === 0) {
     return chalk.green('\n  [OK] No sensitive data detected. Content is safe to share as-is.\n');
@@ -44,119 +133,9 @@ export function formatReport(summaries: EntitySummary[]): string {
     table.push([
       formattedCat,
       chalk.yellow(String(s.count)),
-      `${chalk.red(s.sampleOriginal.substring(0, 20))} -> ${chalk.green(s.sampleMock)}`
+      `${chalk.red(truncateMiddle(s.sampleOriginal, 25))} -> ${chalk.green(truncateMiddle(s.sampleMock, 25))}`
     ]);
   }
 
   return `\n${table.toString()}\n`;
-}
-
-/**
- * Visual display of raw captured error log
- */
-export function printRawContext(content: string, source: string): void {
-  const lines = content.trim().split('\n');
-  const previewLines = lines.slice(0, 8);
-  const remaining = lines.length - previewLines.length;
-
-  console.log(`\n  ${chalk.bold.cyan('[1/4 RAW CONTEXT CAPTURED]')}`);
-  console.log(`  ${chalk.dim(`Source: ${source} · Size: ${content.length} bytes · ${lines.length} lines`)}`);
-  console.log(chalk.dim('  ┌' + '─'.repeat(70)));
-  for (const line of previewLines) {
-    console.log(`  ${chalk.dim('│')} ${chalk.dim(line.substring(0, 95))}`);
-  }
-  if (remaining > 0) {
-    console.log(`  ${chalk.dim('│')} ${chalk.dim.italic(`... [${remaining} more lines loaded in memory]`)}`);
-  }
-  console.log(chalk.dim('  └' + '─'.repeat(70)));
-}
-
-/**
- * Visual Red/Green sanitization diff
- * Red: Sensitive real-world secret
- * Green: Synthetic safe mock replacement
- */
-export function printSanitizationDiff(occurrences: MaskedOccurrence[], total: number): void {
-  console.log(`\n  ${chalk.bold.magenta('[2/4 LOCAL PRIVACY SANITIZATION]')}`);
-  console.log(`  ${chalk.dim(`Redacted ${total} sensitive values locally. Network transmission payload is safe.`)}`);
-  console.log(`  ${chalk.red.bold('[-] RED')} ${chalk.dim('= sensitive host secret')}  ->  ${chalk.green.bold('[+] GREEN')} ${chalk.dim('= synthetic mock')}\n`);
-
-  // Deduplicate occurrences by original string for clean readable diff display
-  const seen = new Set<string>();
-  const uniqueOccurrences = occurrences.filter((occ) => {
-    if (seen.has(occ.original)) return false;
-    seen.add(occ.original);
-    return true;
-  });
-
-  for (const occ of uniqueOccurrences) {
-    const catLabel = chalk.dim(`[${occ.category}]`);
-    console.log(`  ${chalk.red.bold('[-]')} ${chalk.red(occ.original)} ${catLabel}`);
-    console.log(`  ${chalk.green.bold('[+]')} ${chalk.green(occ.mock)}`);
-    console.log('');
-  }
-}
-
-/**
- * Intermediate step: Payload sent to LLM
- */
-export function printStepPayload(payload: string): void {
-  console.log(`\n  ${chalk.bold.yellow('[INTERMEDIATE STEP: CLOAKED PAYLOAD SENT TO LLM]')}`);
-  console.log(`  ${chalk.dim('All sensitive identifiers replaced with synthetic mocks. Zero secret leakage.')}`);
-  console.log(chalk.dim('  ┌' + '─'.repeat(70)));
-  const lines = payload.trim().split('\n');
-  for (const line of lines.slice(0, 25)) {
-    console.log(`  ${chalk.dim('│')} ${line.substring(0, 95)}`);
-  }
-  if (lines.length > 25) {
-    console.log(`  ${chalk.dim('│')} ${chalk.dim.italic(`... [${lines.length - 25} more lines in full payload]`)}`);
-  }
-  console.log(chalk.dim('  └' + '─'.repeat(70)));
-}
-
-/**
- * Intermediate step: Raw model response before rehydration
- */
-export function printRawAiResponse(rawResponse: string): void {
-  console.log(`\n  ${chalk.bold.yellow('[INTERMEDIATE STEP: RAW LLM RESPONSE (UNREHYDRATED)]')}`);
-  console.log(`  ${chalk.dim('Notice the AI response references synthetic mocks (e.g. cloak-db-mock).')}`);
-  console.log(chalk.dim('  ┌' + '─'.repeat(70)));
-  const lines = rawResponse.trim().split('\n');
-  for (const line of lines.slice(0, 30)) {
-    console.log(`  ${chalk.dim('│')} ${line.substring(0, 95)}`);
-  }
-  if (lines.length > 30) {
-    console.log(`  ${chalk.dim('│')} ${chalk.dim.italic(`... [${lines.length - 30} more lines]`)}`);
-  }
-  console.log(chalk.dim('  └' + '─'.repeat(70)));
-}
-
-/**
- * Intermediate step: Token inversion ledger
- */
-export function printRehydrationLedger(occurrences: MaskedOccurrence[]): void {
-  console.log(`\n  ${chalk.bold.yellow('[INTERMEDIATE STEP: REHYDRATION LEDGER]')}`);
-  console.log(`  ${chalk.dim('Local deterministic inversion from synthetic mock back to host identifier:')}\n`);
-
-  const seen = new Set<string>();
-  for (const occ of occurrences) {
-    if (seen.has(occ.mock)) continue;
-    seen.add(occ.mock);
-    console.log(`  ${chalk.green(occ.mock)}  ->  ${chalk.bold.white(occ.original)}  ${chalk.dim(`(${occ.category})`)}`);
-  }
-  console.log('');
-}
-
-/**
- * Final rehydrated solution display
- */
-export function printFinalOutput(finalResponse: string, restoredCount: number): void {
-  console.log(`\n  ${chalk.bold.green('[4/4 FINAL REHYDRATED FIX]')}`);
-  console.log(chalk.dim('  ' + '─'.repeat(72)));
-  console.log(finalResponse);
-  console.log(chalk.dim('  ' + '─'.repeat(72)));
-  if (restoredCount > 0) {
-    console.log(`  ${chalk.green(`[OK] Successfully rehydrated ${restoredCount} original host identifiers.`)}`);
-  }
-  console.log(`  ${chalk.dim('Ready to paste or apply to your local terminal / codebase.\n')}`);
 }
