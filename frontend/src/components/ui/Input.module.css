@@ -1,0 +1,27 @@
+.input {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:hover {
+  border-color: #cfcfcf;
+}
+
+.input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-bg);
+  outline-offset: 0;
+}
+
+.select {
+  padding-right: 4px;
+}

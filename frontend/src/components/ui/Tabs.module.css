@@ -1,0 +1,41 @@
+.list {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tab {
+  position: relative;
+  height: 36px;
+  padding: 0 12px;
+  background: none;
+  border: 0;
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.selected,
+.selected:hover {
+  color: var(--accent);
+}
+
+.selected::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+
+.panel {
+  padding-top: 16px;
+}

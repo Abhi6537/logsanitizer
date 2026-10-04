@@ -1,0 +1,15 @@
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.title {
+  font-weight: 500;
+}
+
+.body {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}

@@ -1,0 +1,76 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px 12px;
+  height: 100%;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+}
+
+.wordmark {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.active,
+.active:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* Icon-only sidebar on medium screens */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .wordmark,
+  .label {
+    display: none;
+  }
+  .item {
+    justify-content: center;
+    padding: 0;
+  }
+  .brand {
+    justify-content: center;
+  }
+}

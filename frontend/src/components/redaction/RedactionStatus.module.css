@@ -1,0 +1,24 @@
+.badge {
+  display: inline-block;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.redacted {
+  background: var(--safe-bg);
+  color: var(--safe);
+}
+
+.processing {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.failed {
+  background: var(--error-bg);
+  color: var(--error);
+}
